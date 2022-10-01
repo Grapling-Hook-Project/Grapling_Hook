@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class PlayerCharcterController : MonoBehaviour
 {
@@ -10,6 +11,7 @@ public class PlayerCharcterController : MonoBehaviour
     [SerializeField] private float mouseSensitivity = 1f;
     [SerializeField] private Transform debugHitPointTransform;
     [SerializeField] private Transform hookshotTransform;
+    [SerializeField] Transform wire;
 
     private CharacterController characterController;
     private float cameraVerticalAngle;
@@ -72,13 +74,17 @@ public class PlayerCharcterController : MonoBehaviour
 
         playerCamera.transform.localEulerAngles = new Vector3(cameraVerticalAngle, 0, 0);
     }
+
     private void CharacterMovement()
     {
-        float moveZ = Input.GetAxisRaw("Horizontal");
-        float moveX = Input.GetAxisRaw("Vertical");
-        float moveSpeed = 20f;
+        float fSpeed = 20f;
 
-        Vector3 characterVelocity = transform.right * moveX * moveSpeed + transform.forward * moveZ * moveSpeed;
+        //Vector3 forward = Camera.main.transform.TransformDirection(Vector3.forward);
+        Vector3 right = Camera.main.transform.TransformDirection(Vector3.right);
+        Vector3 moveDirection = Input.GetAxis("Horizontal") * right + Input.GetAxis("Vertical") * Vector3.Scale(Camera.main.transform.forward, new Vector3(1, 0, 1)).normalized;
+        moveDirection *= fSpeed;
+
+        //Vector3 characterVelocity = transform.right * moveX * moveSpeed + transform.forward * moveZ * moveSpeed;
 
         if (characterController.isGrounded)
         {
@@ -95,22 +101,52 @@ public class PlayerCharcterController : MonoBehaviour
 
         charcterVelocityY += gravityDownForce * Time.deltaTime;
 
-        characterVelocity.y = charcterVelocityY;
+        moveDirection.y = charcterVelocityY;
 
-        characterVelocity += characterVelocityMomentum;
+        moveDirection += characterVelocityMomentum;
 
-        characterController.Move(characterVelocity * Time.deltaTime);
+        characterController.Move(moveDirection * Time.deltaTime);
 
-        if (characterVelocityMomentum.magnitude >= 0f)
-        {
-            float momentumDrag = 10f;
-            characterVelocityMomentum -= characterVelocityMomentum * momentumDrag * Time.deltaTime;
-            if (characterVelocityMomentum.magnitude < .0f)
-            {
-                characterVelocityMomentum = Vector3.zero;
-            }
-        }
+        if(characterController.velocity.y!=0)
+        Debug.Log(characterController.velocity.y);
+
+        //if (characterVelocityMomentum.magnitude >= 0f)
+        //{
+        //    float momentumDrag = 10f;
+        //    characterVelocityMomentum -= characterVelocityMomentum * momentumDrag * Time.deltaTime;
+        //    if (characterVelocityMomentum.magnitude < .0f)
+        //    {
+        //        characterVelocityMomentum = Vector3.zero;
+        //    }
+        //}
     }
+
+    private void FixedUpdate()
+    {
+        //CharacterMove();
+    }
+
+    //private void CharacterMove()
+    //{
+    //    float moveSpeed = 0.5f;
+
+    //    // カメラの方向から、X-Z平面の単位ベクトルを取得
+    //    Vector3 cameraForward = Vector3.Scale(Camera.main.transform.forward, new Vector3(1, 0, 1)).normalized;
+
+    //    // 方向キーの入力値とカメラの向きから、移動方向を決定
+    //    Vector3 moveForward = cameraForward * _moveX + Camera.main.transform.right * _moveZ;
+
+    //    // 移動方向にスピードを掛ける。ジャンプや落下がある場合は、別途Y軸方向の速度ベクトルを足す。
+    //    //rb.velocity = moveForward * moveSpeed + new Vector3(0, rb.velocity.y, 0);
+    //    characterController.Move(moveForward * moveSpeed);
+
+    //    // キャラクターの向きを進行方向に
+    //    if (moveForward != Vector3.zero)
+    //    {
+    //        transform.rotation = Quaternion.LookRotation(moveForward);
+    //    }
+    //}
+
     private void ResetGravityEffect()
     {
         charcterVelocityY = 0f;
@@ -143,8 +179,9 @@ public class PlayerCharcterController : MonoBehaviour
         Debug.Log("HookshotSize:" + hookshotSize);
         Debug.Log("Distance:" + Vector3.Distance(transform.position, shotPoint));
 
-        if (hookshotSize > Vector3.Distance(transform.position, shotPoint))
+        if (hookshotSize * wire.localScale.z > Vector3.Distance(transform.position, shotPoint))
         {
+            hookshotSize = Vector3.Distance(transform.position, shotPoint) / wire.localScale.z;
             state = State.HookshotFlyingPlayer;
         }
         //if (wireColisionScript.WireContact() == true)
@@ -173,7 +210,7 @@ public class PlayerCharcterController : MonoBehaviour
 
 
         //ワイヤーの縮小
-        hookshotSize -= (hookshotDirection * hookshotSpeed * hookshotSpeedMultiplier * Time.deltaTime).magnitude;
+        hookshotSize -= (hookshotDirection * hookshotSpeed * hookshotSpeedMultiplier * Time.deltaTime).magnitude / wire.localScale.z;
         hookshotTransform.localScale = new Vector3(1, 1, hookshotSize);
 
         float reachedHookshotDistance = 1f;
