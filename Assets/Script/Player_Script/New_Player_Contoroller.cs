@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Wire_Speed_Script : MonoBehaviour
+public class New_Player_Contoroller : MonoBehaviour
 {
     // Start is called before the first frame update
     void Start()

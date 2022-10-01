@@ -32,18 +32,11 @@ public class Player_Controller : MonoBehaviour
 
         // 移動方向にスピードを掛ける。ジャンプや落下がある場合は、別途Y軸方向の速度ベクトルを足す。
         rigidbody.velocity = moveForward * moveSpeed + new Vector3(0, rigidbody.velocity.y, 0);
+
         // キャラクターの向きを進行方向に
         if (moveForward != Vector3.zero)
         {
             transform.rotation = Quaternion.LookRotation(moveForward);
-        }
-    }
-    private void FixedUpdate()
-    {
-
-        if (rigidbody.velocity.magnitude > limitSpeed)
-        {
-            rigidbody.velocity = new Vector3(rigidbody.velocity.x / dowSpeed, rigidbody.velocity.y / dowSpeed, rigidbody.velocity.z / dowSpeed);
         }
     }
 }

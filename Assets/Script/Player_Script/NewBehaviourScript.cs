@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 //[RequireComponent(typeof(Animator), typeof(Rigidbody), typeof(LineRenderer))]
-public class Player_Hook : MonoBehaviour
+public class NewBehaviourScript : MonoBehaviour
 {
     [SerializeField] private float maxhook_shot_distance = 100.0f; //Hook_Shot‚ğL‚Î‚¹‚éÅ‘å‹——£
     [SerializeField] private float wire_shorten = 1.0f;             //ƒƒCƒ„[‚Ìk‚ß‚½Û‚Ì©‘R’·
