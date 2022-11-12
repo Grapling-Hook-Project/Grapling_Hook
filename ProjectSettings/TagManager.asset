@@ -5,12 +5,13 @@ TagManager:
   serializedVersion: 2
   tags:
   - Cube
-  - Wire
+  - Feild
+  - anchorPoint
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - PostProcessing
   - Water
   - UI
   - 
