@@ -1,10 +1,14 @@
 using UnityEngine;
-
+using UnityEngine.UI;
 public class PlayerControllerScript : MonoBehaviour
 {
-    [SerializeField] private float mouseSensitivity = 100000f;
+    [SerializeField] private float mouseSensitivity = 1f;
     [SerializeField] private Transform hookshotTransform;
     [SerializeField] Transform wire;
+    [SerializeField] GameObject enabledAim;
+    [SerializeField] GameObject disabledBim;
+    [SerializeField] float hookshotTrowSpeed = 1000;
+    [SerializeField] float diration = 100;
 
     [SerializeField] Rigidbody rb;
 
@@ -14,8 +18,11 @@ public class PlayerControllerScript : MonoBehaviour
     private float hookshotSize;
     private Vector3 shotPoint;
 
-    [SerializeField, Min(0),Tooltip("値が大きいほど疑似摩擦が大きいものになります。上げすぎには注意してください")] 
-    float moveForceMultiplier = 500f;
+    [SerializeField, Min(0), Tooltip("X,Z軸に対しての疑似摩擦です。")]
+    float moveForceMultiplierXZ = 500f;
+
+    [SerializeField, Min(0), Tooltip("Y軸に対しての疑似摩擦です。")]
+    float moveForceMultiplierY = 500f;
 
     //現在接触しているコライダー
     Collider _currentCollider;
@@ -35,6 +42,11 @@ public class PlayerControllerScript : MonoBehaviour
     const float HOOKSHOT_SPEED_MAX = 40f;
     const float HOOKSHOT_SPEED_MULTIPLIER = 2f;
 
+
+    bool quickFall;
+
+    //Vector3 wallHitPosition;
+
     private enum State
     {
         Normal,
@@ -52,16 +64,21 @@ public class PlayerControllerScript : MonoBehaviour
 
         //マウス固定
         Cursor.lockState = CursorLockMode.Locked;
+        
         //変更
         _currentState = State.Normal;
         hookshotTransform.gameObject.SetActive(false);
+        enabledAim.SetActive(false);
+        disabledBim.SetActive(true);
+
+        quickFall = false;
         //Time.timeScale = 0.2f;
     }
 
     private void Update()
     {
-        //Debug.Log(CurrentState);
 
+        //Debug.Log(quickFall);
         switch (_currentState)
         {
             default:
@@ -101,16 +118,16 @@ public class PlayerControllerScript : MonoBehaviour
 
     private void FixedUpdate()
     {
-        CharacterMove();
+        CharacterFrictionMove();
         HookshotMove();
+        GravitySpeedUp();
     }
 
 #if UNITY_EDITOR
-    //常にゲーム画面左上にステートを表示するものです。
-    //ビルド時にはこの部分だけビルドされない設定にしていますが、不要なら削除してください
+    //常にゲーム画面左上にステートを表示。
     private void OnGUI()
     {
-        GUI.Label(new Rect(20, 20, 100, 50), "" + _currentState);
+        GUI.Label(new Rect(40, 40, 100, 50), "" + _currentState);
     }
 #endif
 
@@ -132,18 +149,12 @@ public class PlayerControllerScript : MonoBehaviour
     {
         _horizontalInput = Input.GetAxis("Horizontal");
         _verticalInput = Input.GetAxis("Vertical");
+
+        Debug.Log(_horizontalInput);
     }
 
-    private void CharacterMove()
+    private void CharacterFrictionMove()
     {
-        //------------------------------------------------------------------------------
-        //このメソッドを呼ぶと常に落下がゆっくりになります。
-        //移動入力は普通に効きます。
-        //入力をやめれば擬似的な摩擦のような感じです。
-        //今は下記if文の条件で呼んでいるので常にゆっくりした落下になっています
-        //よって、これを工夫して呼ぶようにしてください。
-        //------------------------------------------------------------------------------
-
         if (_currentState is State.HookshotFlyingPlayer or State.HookshotStandByTargetObj) return;
 
         Vector3 cameraForward = playerCamera.transform.forward;
@@ -154,41 +165,65 @@ public class PlayerControllerScript : MonoBehaviour
 
         Vector3 moveVector = MOVESPEED * (cameraRight.normalized * _horizontalInput + cameraForward.normalized * _verticalInput);
 
+        //上昇時に摩擦をかける
+        if (rb.velocity.y > 0)
+        {
+            quickFall = false;
+            rb.AddForce(moveForceMultiplierY * -new Vector3(0, rb.velocity.y, 0));
+        }
+
         //移動がなければ一定速度に近くなるように力を加える
-        rb.AddForce(moveForceMultiplier * (moveVector - rb.velocity));
+        rb.AddForce(moveForceMultiplierXZ * (moveVector - new Vector3(rb.velocity.x, 0, rb.velocity.z)));
     }
 
     private void HookShotStart()
     {
-        if (!Input.GetMouseButtonDown(0)) return;
-
-        if (Physics.Raycast(playerCamera.transform.position, playerCamera.transform.forward, out RaycastHit raycastHit))
+        if (Physics.Raycast(playerCamera.transform.position, playerCamera.transform.forward, out RaycastHit raycastHit, diration))
         {
-            //hitした座標を格納
+            //hitした座標
             shotPoint = raycastHit.point;
             targetObj = raycastHit.collider.gameObject;
 
+            //切り替え
             if (targetObj.CompareTag("anchorPoint"))
             {
-                SetCurrentCollider(raycastHit.collider);
-                _currentState = State.HookshotThrown;
+                enabledAim.SetActive(true);
+                disabledBim.SetActive(false);
             }
             else
             {
-                _currentState = State.HookshotMistake;
+                enabledAim.SetActive(false);
+                disabledBim.SetActive(true);
             }
 
-            //掴まり表現のためOFFにしていた重力を復活させる。
-            //この処理はState.HookshotStandByTargetObjを抜ける際に行いたいが、そういったものがないためここに直接書き込みます。
-            rb.useGravity = true;
+            if (Input.GetMouseButtonDown(0))
+            {
 
-            hookshotSize = 0f;
+                if (targetObj.CompareTag("anchorPoint"))
+                {
+                    SetCurrentCollider(raycastHit.collider);
+                    _currentState = State.HookshotThrown;
+                }
+                else
+                {
+                    _currentState = State.HookshotMistake;
+                }
 
-            hookshotTransform.gameObject.SetActive(true);
+                //掴まり表現のためOFFにしていた重力を復活させる。
+                rb.useGravity = true;
 
-            hookshotTransform.localScale = Vector3.zero;
+                hookshotSize = 0f;
+
+                hookshotTransform.gameObject.SetActive(true);
+
+                hookshotTransform.localScale = Vector3.zero;
+            }
         }
-
+        else
+        {
+            enabledAim.SetActive(false);
+            disabledBim.SetActive(true);
+        }
     }
 
     private void HookshotThrow()
@@ -196,7 +231,7 @@ public class PlayerControllerScript : MonoBehaviour
         //対象のTransformを設定し、その方向へ向かせる
         hookshotTransform.LookAt(shotPoint);
 
-        float hookshotTrowSpeed = 100000f;
+        //float hookshotTrowSpeed = 10000f;
 
         //サイズの計算
         hookshotSize += hookshotTrowSpeed * Time.deltaTime;
@@ -209,7 +244,6 @@ public class PlayerControllerScript : MonoBehaviour
             hookshotTransform.localScale = new Vector3(1, 1, hookshotSize);
 
             //親の移動の影響を受けてしまうため親をもとに戻す
-            //今後このオブジェクトに永続的な親ができた場合に対応しきれていません。必要ないかも知れませんが対応したほうがいいです。
             gameObject.transform.parent = null;
         }
     }
@@ -229,12 +263,8 @@ public class PlayerControllerScript : MonoBehaviour
         if (hookshotSize < 0) hookshotSize = 0;
         hookshotTransform.localScale = new Vector3(1, 1, hookshotSize);
 
-        //[！！！注意！！！]
-        //真横に掴まった際に範囲外のため、「2→2.5」に変更しました。レベルデザイン部分にかかわる変更のため要確認お願いします。
         float reachHookshotDistance = 2.5f;
 
-        //ワイヤーが特定の距離まで縮まった場合
-        Debug.Log(Vector3.Distance(transform.position, targetObj.transform.position));
         if (Vector3.Distance(transform.position, targetObj.transform.position) < reachHookshotDistance)
         {
             hookshotTransform.gameObject.SetActive(false);
@@ -267,7 +297,6 @@ public class PlayerControllerScript : MonoBehaviour
         rb.useGravity = false;
 
         //さらにビタッと止まるように変更。
-        //仕様が異なる場合は仕様に沿って変更してください。
         rb.velocity = Vector3.zero;
 
         //ステート変更
@@ -282,6 +311,7 @@ public class PlayerControllerScript : MonoBehaviour
     {
         if (Input.GetMouseButtonDown(1))
         {
+            //gravityPoint = transform.position.y;
             //ステート変更
             _currentState = State.HookshotFlyingCut;
             //ワイヤーを非表示
@@ -295,11 +325,9 @@ public class PlayerControllerScript : MonoBehaviour
 
         if (Input.GetMouseButtonDown(1))
         {
-            //掴まり表現のためOFFにしていた重力を復活させる。
-            //この処理はState.HookshotStandByTargetObjを抜ける際に行いたいが、そういったものがないためここに直接書き込みます。
+            //掴まり表現のためOFFにしていた重力を復活させる
             rb.useGravity = true;
 
-            //今後このオブジェクトに永続的な親ができた場合に対応しきれていません。必要ないかも知れませんが対応したほうがいいです。
             gameObject.transform.parent = null;
             hookshotTransform.LookAt(targetObj.transform);
             _currentState = State.Normal;
@@ -310,13 +338,47 @@ public class PlayerControllerScript : MonoBehaviour
     private void HookshotCutParabola()
     {
         var ray = new Ray(transform.position + Vector3.up * 0.1f, Vector3.down);
-
         var distance = 1.2f;
 
         if (Physics.Raycast(ray, distance))
         {
-            Debug.Log("床と接触");
+            //Debug.Log("床と接触");
             _currentState = State.Normal;
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (_currentState == State.HookshotFlyingPlayer)
+        {
+            hookshotTransform.gameObject.SetActive(false);
+            _currentState = State.Normal;
+        }
+
+        if (_currentState is not State.HookshotFlyingCut) return;
+
+        Debug.Log("OBJ接触");
+        quickFall = true;
+    }
+
+    private void GravitySpeedUp()
+    {
+        var ray = new Ray(transform.position + Vector3.up * 0.1f, Vector3.down);
+        var distance = 1.0f;
+
+        if (Physics.Raycast(ray, distance))
+        {
+            //Debug.Log("床と接触");
+            quickFall = false;
+
+            if (_currentState is not State.HookshotFlyingCut) return;
+
+            _currentState = State.Normal;
+        }
+        if (quickFall == true || _currentState == State.HookshotFlyingCut)
+        {
+            //Debug.Log("急降下");
+            rb.AddForce(new Vector3(0, -100f, 0));
         }
     }
 

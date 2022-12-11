@@ -7,6 +7,8 @@ TagManager:
   - Cube
   - Feild
   - anchorPoint
+  - Ground
+  - core
   layers:
   - Default
   - TransparentFX
